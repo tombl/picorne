@@ -40,25 +40,20 @@ mod app {
 
     #[shared]
     struct Shared {
-        #[lock_free]
-        alarm: Alarm0,
-        #[lock_free]
-        debouncer: Debouncer<PressedKeys<4, 6>>,
         hid: HidClass<'static, UsbBus, Keyboard<Leds>>,
-        #[lock_free]
-        layout: Layout<CustomAction, 12, 4, 3>,
-        #[lock_free]
-        matrix: Matrix<DynPin, DynPin, 4, 6>,
         serial_port: SerialPort<'static, UsbBus>,
-        #[lock_free]
-        uart: uart::UartPeripheral<uart::Enabled, UART0, (Gp0Uart0Tx, Gp1Uart0Rx)>,
         usb_dev: UsbDevice<'static, UsbBus>,
-        #[lock_free]
-        watchdog: Watchdog,
     }
 
     #[local]
-    struct Local {}
+    struct Local {
+        alarm: Alarm0,
+        debouncer: Debouncer<PressedKeys<4, 6>>,
+        layout: Layout<CustomAction, 12, 4, 3>,
+        matrix: Matrix<DynPin, DynPin, 4, 6>,
+        uart: uart::UartPeripheral<uart::Enabled, UART0, (Gp0Uart0Tx, Gp1Uart0Rx)>,
+        watchdog: Watchdog,
+    }
 
     pub struct Leds {
         caps_lock: Pin<Gpio25, PushPullOutput>,
@@ -166,6 +161,11 @@ mod app {
         println!(&mut serial_port, "init left");
         (
             Shared {
+                hid,
+                serial_port,
+                usb_dev,
+            },
+            Local {
                 alarm,
                 debouncer: Debouncer::new(
                     PressedKeys::default(),
@@ -173,14 +173,10 @@ mod app {
                     DEBOUNCE_TIME,
                 ),
                 layout: Layout::new(&LAYERS),
-                hid,
-                usb_dev,
                 matrix,
-                serial_port,
                 uart,
                 watchdog,
             },
-            Local {},
             init::Monotonics(),
         )
     }
@@ -208,18 +204,20 @@ mod app {
         });
     }
 
-    #[task(binds = TIMER_IRQ_0, priority = 1, shared = [alarm, debouncer, hid, layout, matrix, serial_port, uart, usb_dev, watchdog])]
+    #[task(binds = TIMER_IRQ_0, priority = 1, local = [alarm, debouncer, layout, matrix, uart, watchdog], shared = [hid, serial_port, usb_dev])]
     fn scan_timer_irq(cx: scan_timer_irq::Context) {
-        let scan_timer_irq::SharedResources {
+        let scan_timer_irq::LocalResources {
             alarm,
             debouncer,
-            mut hid,
             layout,
             matrix,
-            serial_port,
             uart,
-            usb_dev,
             watchdog,
+        } = cx.local;
+        let scan_timer_irq::SharedResources {
+            mut hid,
+            serial_port,
+            usb_dev,
         } = cx.shared;
 
         alarm.clear_interrupt();
