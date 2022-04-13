@@ -32,6 +32,7 @@ mod app {
         Gp0Uart0Tx, Gp1Uart0Rx, Pins, XOSC_CRYSTAL_FREQ,
     };
     use usb_device::{
+        class::UsbClass,
         class_prelude::UsbBusAllocator,
         device::{UsbDevice, UsbDeviceBuilder, UsbVidPid},
     };
@@ -193,26 +194,47 @@ mod app {
 
     #[task(binds = USBCTRL_IRQ, priority = 2, shared = [serial_port, usb_dev, hid])]
     fn usb_rx(cx: usb_rx::Context) {
-        (cx.shared.serial_port, cx.shared.usb_dev, cx.shared.hid)
-            .lock(|serial, dev, hid| dev.poll(&mut [serial, hid]));
+        let usb_rx::SharedResources {
+            serial_port,
+            usb_dev,
+            hid,
+        } = cx.shared;
+
+        (serial_port, usb_dev, hid).lock(|serial, dev, hid| {
+            if dev.poll(&mut [serial, hid]) {
+                serial.poll();
+                hid.poll();
+            }
+        });
     }
 
-    #[task(binds = TIMER_IRQ_0, priority = 1, shared = [alarm, debouncer, layout, matrix, serial_port, uart, hid, usb_dev, watchdog])]
+    #[task(binds = TIMER_IRQ_0, priority = 1, shared = [alarm, debouncer, hid, layout, matrix, serial_port, uart, usb_dev, watchdog])]
     fn scan_timer_irq(cx: scan_timer_irq::Context) {
-        let alarm = cx.shared.alarm;
+        let scan_timer_irq::SharedResources {
+            alarm,
+            debouncer,
+            mut hid,
+            layout,
+            matrix,
+            serial_port,
+            uart,
+            usb_dev,
+            watchdog,
+        } = cx.shared;
+
         alarm.clear_interrupt();
         alarm.schedule(SCAN_TIME.microseconds()).unwrap();
 
-        cx.shared.watchdog.feed();
+        watchdog.feed();
 
-        for event in cx.shared.debouncer.events(cx.shared.matrix.get().unwrap()) {
+        for event in debouncer.events(matrix.get().unwrap()) {
             let event = event.transform(|i, j| (j, 5 - i));
-            cx.shared.layout.event(event);
+            layout.event(event);
         }
 
-        while cx.shared.uart.uart_is_readable() {
+        while uart.uart_is_readable() {
             let mut msg = [0u8; 3];
-            if cx.shared.uart.read_full_blocking(&mut msg).is_err() {
+            if uart.read_full_blocking(&mut msg).is_err() {
                 break;
             }
 
@@ -224,31 +246,34 @@ mod app {
             }
             .transform(|i, j| (j, i + 6));
 
-            cx.shared.layout.event(event);
+            layout.event(event);
         }
 
-        let layout = cx.shared.layout;
-        (cx.shared.serial_port, cx.shared.hid, cx.shared.usb_dev).lock(|serial, hid, dev| {
-            match layout.tick() {
-                CustomEvent::NoEvent => {}
-                CustomEvent::Press(action) => match action {
-                    CustomAction::Reset => {
-                        cortex_m::interrupt::disable();
-                        loop {
-                            // the watchdog will reset us
-                            cortex_m::asm::nop();
-                        }
+        match layout.tick() {
+            CustomEvent::NoEvent => {}
+            CustomEvent::Press(action) => match action {
+                CustomAction::Reset => {
+                    cortex_m::interrupt::disable();
+                    loop {
+                        // the watchdog will reset us
+                        cortex_m::asm::nop();
                     }
-                    CustomAction::Bootsel => reset_to_usb_boot(0, 0),
-                },
-                CustomEvent::Release(_) => unreachable!(),
-            };
+                }
+                CustomAction::Bootsel => reset_to_usb_boot(0, 0),
+            },
+            CustomEvent::Release(_) => unreachable!(),
+        };
 
-            let report: KbHidReport = layout.keycodes().collect();
-            if hid.device_mut().set_keyboard_report(report.clone()) {
-                while let Ok(0) = hid.write(report.as_bytes()) {}
-            }
-            dev.poll(&mut [serial, hid]);
+        let report = layout.keycodes().collect::<KbHidReport>();
+        if hid.lock(|hid| hid.device_mut().set_keyboard_report(report.clone())) {
+            while let Ok(0) = hid.lock(|hid| hid.write(report.as_bytes())) {}
+        }
+
+        (serial_port, hid, usb_dev).lock(|serial, hid, dev| {
+            if dev.poll(&mut [serial, hid]) {
+                serial.poll();
+                hid.poll();
+            };
         });
     }
 }
