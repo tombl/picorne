@@ -3,7 +3,7 @@
 Based on the [keyberon](https://github.com/TeXitoi/keyberon) library to create keyboard firmwares.
 
 ## Customising the layout
-Check out `src/layout.rs`.
+Check out `src/left/layout.rs`.
 Just modify the contents of the `layout!` block according to the following documentation.
 
 For a letter key, just write the letter in caps. For a symbol or number, just write it. In the case of special characters, wrap them in single quotes.
@@ -28,7 +28,11 @@ With [rust installed](https://rustup.rs):
 rustup target install thumbv6m-none-eabi
 cargo install flip-link
 cargo install elf2uf2-rs
-cargo build --release
-elf2uf2-rs target/thumbv6m-none-eabi/release/picorne
+
+# put left into bootsel, then
+cargo run --release --bin left
+
+# put right into bootsel, then
+cargo run --release --bin right
 ```
-Then find your built firmware at target/thumbv6m-none-eabi/release/picorne.uf2
+When you change your layout, you only need to rebuild the left's firmware.

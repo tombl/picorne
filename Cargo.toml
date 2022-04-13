@@ -5,51 +5,27 @@ edition = "2018"
 version = "0.1.0"
 
 [dependencies]
-defmt = "0.3.0"
-defmt-rtt = "0.3.0"
-panic-probe = { version = "0.3.0", features = ["print-defmt"] }
-cortex-m-rtic = "1"
+cortex-m-rtic = "=1.0.0"
 rp-pico = "0.3.0"
 cortex-m = "0.7.4"
 keyberon = { git = "https://github.com/TeXitoi/keyberon.git" }
 embedded-time = "0.12.1"
 embedded-hal = "0.2.7"
 usb-device = "0.2.8"
+usbd-serial = "0.1.1"
 
-# cargo build/run
 [profile.dev]
 codegen-units = 1
 debug = 2
-debug-assertions = true # <-
+debug-assertions = true
 incremental = false
-opt-level = "s" # <-
-overflow-checks = true # <-
+opt-level = "s"
+overflow-checks = true
 
-# cargo test
-[profile.test]
-codegen-units = 1
-debug = 2
-debug-assertions = true # <-
-incremental = false
-opt-level = "s" # <-
-overflow-checks = true # <-
-
-# cargo build/run --release
 [profile.release]
 codegen-units = 1
 debug = 2
-debug-assertions = false # <-
+debug-assertions = false
 incremental = false
-lto = 'fat'
-opt-level = "s" # <-
-overflow-checks = false # <-
-
-# cargo test --release
-[profile.bench]
-codegen-units = 1
-debug = 2
-debug-assertions = false # <-
-incremental = false
-lto = 'fat'
-opt-level = "s" # <-
-overflow-checks = false # <-
+opt-level = "s"
+overflow-checks = false
