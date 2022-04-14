@@ -49,7 +49,7 @@ mod app {
     struct Local {
         alarm: Alarm0,
         debouncer: Debouncer<PressedKeys<4, 6>>,
-        layout: Layout<CustomAction, 12, 4, 3>,
+        layout: Layout<12, 4, 3, CustomAction>,
         matrix: Matrix<DynPin, DynPin, 4, 6>,
         uart: uart::UartPeripheral<uart::Enabled, UART0, (Gp0Uart0Tx, Gp1Uart0Rx)>,
         watchdog: Watchdog,
