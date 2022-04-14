@@ -32,22 +32,18 @@ mod app {
 
     #[shared]
     struct Shared {
-        #[lock_free]
-        alarm: Alarm0,
-        #[lock_free]
-        debouncer: Debouncer<PressedKeys<4, 6>>,
-        #[lock_free]
-        matrix: Matrix<DynPin, DynPin, 4, 6>,
         serial_port: SerialPort<'static, UsbBus>,
-        #[lock_free]
-        uart: uart::UartPeripheral<uart::Enabled, UART0, (Gp0Uart0Tx, Gp1Uart0Rx)>,
         usb_dev: UsbDevice<'static, UsbBus>,
-        #[lock_free]
-        watchdog: Watchdog,
     }
 
     #[local]
-    struct Local {}
+    struct Local {
+        alarm: Alarm0,
+        debouncer: Debouncer<PressedKeys<4, 6>>,
+        matrix: Matrix<DynPin, DynPin, 4, 6>,
+        uart: uart::UartPeripheral<uart::Enabled, UART0, (Gp0Uart0Tx, Gp1Uart0Rx)>,
+        watchdog: Watchdog,
+    }
 
     #[init(local = [usb_bus: Option<UsbBusAllocator<UsbBus>> = None])]
     fn init(cx: init::Context) -> (Shared, Local, init::Monotonics) {
@@ -140,6 +136,10 @@ mod app {
         println!(&mut serial_port, "init right");
         (
             Shared {
+                serial_port,
+                usb_dev,
+            },
+            Local {
                 alarm,
                 debouncer: Debouncer::new(
                     PressedKeys::default(),
@@ -147,12 +147,9 @@ mod app {
                     DEBOUNCE_TIME,
                 ),
                 matrix,
-                serial_port,
                 uart,
-                usb_dev,
                 watchdog,
             },
-            Local {},
             init::Monotonics(),
         )
     }
@@ -169,17 +166,29 @@ mod app {
         (cx.shared.serial_port, cx.shared.usb_dev).lock(|serial, dev| dev.poll(&mut [serial]));
     }
 
-    #[task(binds = TIMER_IRQ_0, priority = 1, shared = [alarm, debouncer, matrix, serial_port, uart, usb_dev, watchdog])]
+    #[task(binds = TIMER_IRQ_0, priority = 1, local = [alarm, debouncer, matrix, uart, watchdog], shared = [serial_port, usb_dev])]
     fn scan_timer_irq(cx: scan_timer_irq::Context) {
-        let alarm = cx.shared.alarm;
+        let scan_timer_irq::LocalResources {
+            alarm,
+            debouncer,
+            matrix,
+            uart,
+            watchdog,
+        } = cx.local;
+        let scan_timer_irq::SharedResources {
+            serial_port,
+            usb_dev,
+        } = cx.shared;
+
+        let alarm = alarm;
         alarm.clear_interrupt();
         alarm.schedule(SCAN_TIME.microseconds()).unwrap();
 
-        cx.shared.watchdog.feed();
+        watchdog.feed();
 
-        for event in cx.shared.debouncer.events(cx.shared.matrix.get().unwrap()) {
+        for event in debouncer.events(matrix.get().unwrap()) {
             let (i, j) = event.coord();
-            cx.shared.uart.write_full_blocking(&[
+            uart.write_full_blocking(&[
                 match event {
                     Event::Press(_, _) => 255,
                     Event::Release(_, _) => 254,
@@ -189,7 +198,7 @@ mod app {
             ]);
         }
 
-        (cx.shared.serial_port, cx.shared.usb_dev).lock(|serial, dev| {
+        (serial_port, usb_dev).lock(|serial, dev| {
             dev.poll(&mut [serial]);
         });
     }
