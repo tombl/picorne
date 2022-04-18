@@ -14,7 +14,7 @@ use usbd_serial::SerialPort;
 pub const SCAN_TIME: u32 = 1000;
 
 // multiple of SCAN_TIME that a key has to be held to consider it pressed
-pub const DEBOUNCE_TIME: u16 = 5;
+pub const DEBOUNCE_TIME: u16 = 20;
 
 pub const UART_CONFIG: UartConfig = _9600_8_N_1;
 

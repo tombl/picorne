@@ -16,6 +16,7 @@ mod app {
         hal::{
             clocks::init_clocks_and_plls,
             gpio::{DynPin, FunctionUart},
+            rom_data::reset_to_usb_boot,
             timer::Alarm0,
             uart,
             usb::UsbBus,
@@ -102,7 +103,7 @@ mod app {
             .device_class(2)
             .build();
 
-        let matrix = Matrix::<DynPin, DynPin, 4, 6>::new(
+        let mut matrix = Matrix::<DynPin, DynPin, 4, 6>::new(
             [
                 pins.gpio10.into_pull_up_input().into(),
                 pins.gpio11.into_pull_up_input().into(),
@@ -119,6 +120,14 @@ mod app {
             ],
         )
         .unwrap();
+
+        {
+            let pressed = matrix.get().unwrap();
+            let mut pressed = pressed.iter_pressed();
+            if pressed.clone().count() == 1 && pressed.next() == Some((1, 1)) {
+                reset_to_usb_boot(0, 0);
+            };
+        }
 
         let uart = uart::UartPeripheral::new(
             cx.device.UART0,

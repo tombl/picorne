@@ -49,7 +49,7 @@ mod app {
     struct Local {
         alarm: Alarm0,
         debouncer: Debouncer<PressedKeys<4, 6>>,
-        layout: Layout<12, 4, 3, CustomAction>,
+        layout: Layout<12, 4, 5, CustomAction>,
         matrix: Matrix<DynPin, DynPin, 4, 6>,
         uart: uart::UartPeripheral<uart::Enabled, UART0, (Gp0Uart0Tx, Gp1Uart0Rx)>,
         watchdog: Watchdog,
@@ -127,7 +127,7 @@ mod app {
             .product("picorne left")
             .build();
 
-        let matrix = Matrix::<DynPin, DynPin, 4, 6>::new(
+        let mut matrix = Matrix::<DynPin, DynPin, 4, 6>::new(
             [
                 pins.gpio21.into_pull_up_input().into(),
                 pins.gpio20.into_pull_up_input().into(),
@@ -144,6 +144,14 @@ mod app {
             ],
         )
         .unwrap();
+
+        {
+            let pressed = matrix.get().unwrap();
+            let mut pressed = pressed.iter_pressed();
+            if pressed.clone().count() == 1 && pressed.next() == Some((1, 1)) {
+                reset_to_usb_boot(0, 0);
+            };
+        }
 
         let uart = uart::UartPeripheral::new(
             cx.device.UART0,
