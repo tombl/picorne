@@ -8,7 +8,7 @@ version = "0.1.0"
 cortex-m-rtic = "1"
 rp-pico = "0.3.0"
 cortex-m = "0.7.4"
-keyberon = { git = "https://github.com/TeXitoi/keyberon.git" }
+keyberon = { git = "https://github.com/TeXitoi/keyberon.git", rev = "a94f2392" }
 embedded-time = "0.12.1"
 embedded-hal = "0.2.7"
 usb-device = "0.2.8"

@@ -15,7 +15,7 @@ mod app {
         key_code::KbHidReport,
         keyboard::Keyboard,
         layout::{CustomEvent, Event, Layout},
-        matrix::{Matrix, PressedKeys},
+        matrix::Matrix,
     };
     use picorne::{println, DEBOUNCE_TIME, SCAN_TIME, UART_CONFIG};
     use rp_pico::{
@@ -48,7 +48,7 @@ mod app {
     #[local]
     struct Local {
         alarm: Alarm0,
-        debouncer: Debouncer<PressedKeys<4, 6>>,
+        debouncer: Debouncer<[[bool; 4]; 6]>,
         layout: Layout<12, 4, 5, CustomAction>,
         matrix: Matrix<DynPin, DynPin, 4, 6>,
         uart: uart::UartPeripheral<uart::Enabled, UART0, (Gp0Uart0Tx, Gp1Uart0Rx)>,
@@ -147,8 +147,9 @@ mod app {
 
         {
             let pressed = matrix.get().unwrap();
-            let mut pressed = pressed.iter_pressed();
-            if pressed.clone().count() == 1 && pressed.next() == Some((1, 1)) {
+            let n_pressed = pressed.iter().flatten().filter(|&&p| p).count();
+            let first_pressed = pressed.iter().flatten().position(|&p| p);
+            if n_pressed == 1 && first_pressed == Some(0) {
                 reset_to_usb_boot(0, 0);
             };
         }
@@ -176,8 +177,8 @@ mod app {
             Local {
                 alarm,
                 debouncer: Debouncer::new(
-                    PressedKeys::default(),
-                    PressedKeys::default(),
+                    Default::default(),
+                    Default::default(),
                     DEBOUNCE_TIME,
                 ),
                 layout: Layout::new(&LAYERS),

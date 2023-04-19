@@ -6,11 +6,7 @@
 mod app {
     use embedded_hal::{digital::v2::OutputPin, prelude::*};
     use embedded_time::duration::Extensions;
-    use keyberon::{
-        debounce::Debouncer,
-        layout::Event,
-        matrix::{Matrix, PressedKeys},
-    };
+    use keyberon::{debounce::Debouncer, layout::Event, matrix::Matrix};
     use picorne::{println, DEBOUNCE_TIME, SCAN_TIME, UART_CONFIG};
     use rp_pico::{
         hal::{
@@ -40,7 +36,7 @@ mod app {
     #[local]
     struct Local {
         alarm: Alarm0,
-        debouncer: Debouncer<PressedKeys<4, 6>>,
+        debouncer: Debouncer<[[bool; 4]; 6]>,
         matrix: Matrix<DynPin, DynPin, 4, 6>,
         uart: uart::UartPeripheral<uart::Enabled, UART0, (Gp0Uart0Tx, Gp1Uart0Rx)>,
         watchdog: Watchdog,
@@ -123,11 +119,13 @@ mod app {
 
         {
             let pressed = matrix.get().unwrap();
-            let mut pressed = pressed.iter_pressed();
-            if pressed.clone().count() == 1 && pressed.next() == Some((1, 1)) {
+            let n_pressed = pressed.iter().flatten().filter(|&&p| p).count();
+            let first_pressed = pressed.iter().flatten().position(|&p| p);
+            if n_pressed == 1 && first_pressed == Some(0) {
                 reset_to_usb_boot(0, 0);
             };
         }
+
 
         let uart = uart::UartPeripheral::new(
             cx.device.UART0,
@@ -151,8 +149,8 @@ mod app {
             Local {
                 alarm,
                 debouncer: Debouncer::new(
-                    PressedKeys::default(),
-                    PressedKeys::default(),
+                    Default::default(),
+                    Default::default(),
                     DEBOUNCE_TIME,
                 ),
                 matrix,
